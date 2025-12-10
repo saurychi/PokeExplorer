@@ -11,9 +11,18 @@ import {
   Alert,
 } from "react-native";
 import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 
 type Props = NativeStackScreenProps<any>;
+
+export const defaultUserProfile = {
+  gender: "",
+  starter: "",
+  pokemon_discovered: 0,
+  pokemon_captured: 0,
+  trainerLevel: 1,
+};
 
 const SignupScreen: React.FC<Props> = ({ navigation }) => {
   const [name, setName] = useState("");
@@ -46,6 +55,15 @@ const SignupScreen: React.FC<Props> = ({ navigation }) => {
         email.trim(),
         password
       );
+      const uid = userCred.user.uid;
+
+      await firestore().collection("users").doc(uid).set({
+        uid,
+        name,
+        email: email.trim().toLowerCase(),
+        ...defaultUserProfile,
+        createdAt: firestore.FieldValue.serverTimestamp(),
+      });
 
       await userCred.user.updateProfile({ displayName: name });
 

@@ -12,6 +12,7 @@ import {
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import firestore from "@react-native-firebase/firestore";
 
 type Props = NativeStackScreenProps<any>;
 
@@ -29,8 +30,32 @@ const SigninScreen: React.FC<Props> = ({ navigation }) => {
 
     try {
       setLoading(true);
-      await auth().signInWithEmailAndPassword(email.trim(), password);
-      navigation.navigate("Home");
+      const userCred = await auth().signInWithEmailAndPassword(
+        email.trim(),
+        password
+      );
+
+      const uid = userCred.user.uid;
+
+      const userDoc = await firestore()
+        .collection("users")
+        .doc(uid)
+        .get();
+
+      if (!userDoc.exists) {
+        Alert.alert("Error", "User profile not found.");
+        return;
+      }
+
+      const data = userDoc.data();
+      const gender = data?.gender;
+      const starter = data?.starter;
+
+      if (!gender || gender === "" || !starter || starter === "") {
+        navigation.navigate("Gender");
+      } else {
+        navigation.navigate("Home");
+      }
     } catch (error: any) {
       console.log("Sign in error:", error);
       Alert.alert("Sign in failed", error.message || "Please try again.");
@@ -104,7 +129,6 @@ const SigninScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
             </TouchableOpacity>
 
-            {/* Register row */}
             <View style={styles.bottomRow}>
               <Text style={styles.bottomText}>New Member? </Text>
               <TouchableOpacity
