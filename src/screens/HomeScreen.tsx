@@ -1,7 +1,5 @@
 import { View, Text } from 'react-native'
-import React, { useEffect } from 'react';
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import React from 'react'
 
 const HomeScreen = () => {
   return (
