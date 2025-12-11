@@ -6,6 +6,7 @@ import {
   SafeAreaView,
   Image,
   ActivityIndicator,
+  TouchableOpacity, // ⬅️ NEW
 } from "react-native";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
@@ -30,10 +31,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
 
     const loadProfile = async () => {
       try {
-        const doc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
+        const doc = await firestore().collection("users").doc(user.uid).get();
 
         const data = doc.data() || {};
 
@@ -62,8 +60,7 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
-  const displayName =
-    profile?.name || profile?.displayName || "Trainer";
+  const displayName = profile?.name || profile?.displayName || "Trainer";
 
   const gender = profile?.gender === "female" ? "female" : "male";
 
@@ -86,8 +83,6 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
   if (createdAt && createdAt.toDate) {
     joinedText = createdAt.toDate().toLocaleDateString();
   }
-
-
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -116,46 +111,42 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
             @{(profile?.email || "trainer").split("@")[0]}
           </Text>
 
-          <Text style={styles.joinedText}>
-            Joined on {joinedText}
-          </Text>
+          <Text style={styles.joinedText}>Joined on {joinedText}</Text>
 
           <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>
-              Total Pokemon Discovered:
-            </Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: theme.accent },
-              ]}
-            >
+            <Text style={styles.statLabel}>Total Pokemon Discovered:</Text>
+            <Text style={[styles.statValue, { color: theme.accent }]}>
               {profile?.pokemon_discovered}
             </Text>
           </View>
 
           <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>
-              Total Pokemon Captures:
-            </Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: theme.accent },
-              ]}
-            >
+            <Text style={styles.statLabel}>Total Pokemon Captures:</Text>
+            <Text style={[styles.statValue, { color: theme.accent }]}>
               {profile?.pokemon_captured}
             </Text>
           </View>
         </View>
 
+        {/* ⬇️ Bottom tab bar with navigation */}
         <View style={styles.tabBar}>
-          <View style={styles.tabItem}>
+          {/* Home tab (current screen) */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigation.navigate("Home")}
+          >
             <Ionicons name="ios-home" size={22} color="#000" />
-          </View>
-          <View style={styles.tabItem}>
+          </TouchableOpacity>
+
+          {/* Hunt tab → opens HuntScreen */}
+          <TouchableOpacity
+            style={styles.tabItem}
+            onPress={() => navigation.navigate("Hunt")}
+          >
             <Ionicons name="ios-compass" size={22} color="#000" />
-          </View>
+          </TouchableOpacity>
+
+          {/* Profile tab (placeholder for now) */}
           <View style={styles.tabItem}>
             <Ionicons name="ios-person" size={22} color="#000" />
           </View>
