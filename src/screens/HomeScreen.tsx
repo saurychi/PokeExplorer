@@ -1,24 +1,25 @@
+// src/screens/HomeScreen.tsx
+
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   SafeAreaView,
   Image,
   ActivityIndicator,
+  StyleSheet,
 } from "react-native";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
-import Ionicons from "react-native-vector-icons/Ionicons";
-import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import LinearGradient from "react-native-linear-gradient";
 
-type Props = NativeStackScreenProps<any>;
+import BottomTab, { TabKey } from "../components/BottomTab";
 
-const HomeScreen: React.FC<Props> = ({ navigation }) => {
+const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [pokemonsDiscovered, setPokemonsDiscovered] = useState();
-  const [pokemonsExplored, setPokemonsExplored] = useState();
+  const [activeTab, setActiveTab] = useState<TabKey>("home");
 
   useEffect(() => {
     const user = auth().currentUser;
@@ -28,13 +29,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       return;
     }
 
-    const loadProfile = async () => {
+    const fetchProfile = async () => {
       try {
-        const doc = await firestore()
-          .collection("users")
-          .doc(user.uid)
-          .get();
-
+        const doc = await firestore().collection("users").doc(user.uid).get();
         const data = doc.data() || {};
 
         setProfile({
@@ -42,14 +39,14 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
           email: user.email,
           displayName: user.displayName,
         });
-      } catch (err) {
-        console.log("Error loading profile:", err);
+      } catch (error) {
+        console.log("Profile error:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    loadProfile();
+    fetchProfile();
   }, [navigation]);
 
   if (loading) {
@@ -62,14 +59,10 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     );
   }
 
-  const displayName =
-    profile?.name || profile?.displayName || "Trainer";
-
+  const displayName = profile?.name || profile?.displayName || "Trainer";
   const gender = profile?.gender === "female" ? "female" : "male";
 
-  const isFemale = gender === "female";
-
-  const theme = isFemale
+  const theme = gender === "female"
     ? {
         topColor: "#4FA7FF",
         accent: "#4FA7FF",
@@ -81,17 +74,27 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
         trainerImage: require("../assets/images/male_trainer.png"),
       };
 
-  let joinedText = "Unknown";
-  const createdAt = profile?.createdAt;
-  if (createdAt && createdAt.toDate) {
-    joinedText = createdAt.toDate().toLocaleDateString();
-  }
+  const joinedText =
+    profile?.createdAt?.toDate
+      ? profile.createdAt.toDate().toLocaleDateString()
+      : "Unknown";
 
-
+  const recentCaught: string[] = profile?.recent_caught || [];
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={[styles.topSection, { backgroundColor: theme.topColor }]}>
+
+        <LinearGradient
+          colors={[
+            "rgba(255,255,255,0.55)",
+            "rgba(255,255,255,0.0)",
+          ]}
+          start={{ x: 0.5, y: 1 }}
+          end={{ x: 0.5, y: 0 }}
+          style={styles.bottomGlow}
+        />
+
         <View style={styles.topHeaderRow}>
           <Text style={styles.welcomeText}>Welcome, {displayName}</Text>
           <Image
@@ -110,62 +113,53 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       </View>
 
       <View style={styles.bottomSheet}>
-        <View style={styles.profileSection}>
-          <Text style={styles.nameText}>{displayName}</Text>
-          <Text style={styles.tagText}>
-            @{(profile?.email || "trainer").split("@")[0]}
+        <Text style={styles.nameText}>{displayName}</Text>
+        <Text style={styles.tagText}>@{(profile?.email || "").split("@")[0]}</Text>
+
+        <Text style={styles.joinedText}>Joined on {joinedText}</Text>
+
+        <View style={styles.statBlock}>
+          <Text style={styles.statLabel}>Total Pokemon Discovered:</Text>
+          <Text style={[styles.statValue, { color: theme.accent }]}>
+            {profile?.pokemon_discovered ?? 0}
           </Text>
-
-          <Text style={styles.joinedText}>
-            Joined on {joinedText}
-          </Text>
-
-          <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>
-              Total Pokemon Discovered:
-            </Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: theme.accent },
-              ]}
-            >
-              {profile?.pokemon_discovered}
-            </Text>
-          </View>
-
-          <View style={styles.statBlock}>
-            <Text style={styles.statLabel}>
-              Total Pokemon Captures:
-            </Text>
-            <Text
-              style={[
-                styles.statValue,
-                { color: theme.accent },
-              ]}
-            >
-              {profile?.pokemon_captured}
-            </Text>
-          </View>
         </View>
 
-        <View style={styles.tabBar}>
-          <View style={styles.tabItem}>
-            <Ionicons name="ios-home" size={22} color="#000" />
-          </View>
-          <View style={styles.tabItem}>
-            <Ionicons name="ios-compass" size={22} color="#000" />
-          </View>
-          <View style={styles.tabItem}>
-            <Ionicons name="ios-person" size={22} color="#000" />
-          </View>
+        <View style={styles.statBlock}>
+          <Text style={styles.statLabel}>Total Pokemon Captures:</Text>
+          <Text style={[styles.statValue, { color: theme.accent }]}>
+            {profile?.pokemon_captured ?? 0}
+          </Text>
         </View>
+
+        <View style={styles.recentSection}>
+          <Text style={styles.recentTitle}>Recently Caught Pokémon</Text>
+          {recentCaught.length === 0 ? (
+            <Text style={styles.recentEmpty}>
+              No recent captures yet. Go explore and catch some!
+            </Text>
+          ) : (
+            <View style={styles.recentList}>
+              {recentCaught.slice(0, 4).map((name, idx) => (
+                <View key={idx} style={styles.recentPill}>
+                  <Text style={styles.recentPillText}>{name}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+      </View>
+
+      <View style={styles.bottomTabWrapper}>
+        <BottomTab
+          activeTab={activeTab}
+          onTabPress={setActiveTab}
+          accentColor={theme.accent}
+        />
       </View>
     </SafeAreaView>
   );
 };
-
-export default HomeScreen;
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -173,63 +167,75 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
 
-  /* TOP SECTION */
   topSection: {
-    height: 230,
+    height: 320,
     paddingHorizontal: 24,
     paddingTop: 10,
   },
+
+  bottomGlow: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 200, // adjust strength
+    zIndex: 0,
+  },
+
   topHeaderRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+    justifyContent: "flex-end",
+    marginTop: 10,
+    zIndex: 2,
   },
   welcomeText: {
-    color: "#FFFFFF",
+    color: "#000",
+    fontWeight: "bold",
     fontSize: 14,
+    marginRight: 6,
   },
   pokeballSmall: {
     width: 24,
     height: 24,
   },
+
   trainerWrapper: {
     flex: 1,
     justifyContent: "flex-end",
     alignItems: "flex-start",
   },
   trainerImage: {
-    width: 140,
-    height: 180,
+    width: 240,
+    height: 340,
+    marginLeft: -40,
+    marginBottom: -55,
   },
 
-  /* BOTTOM SHEET */
   bottomSheet: {
     flex: 1,
-    backgroundColor: "#111111",
+    backgroundColor: "#111",
     borderTopLeftRadius: 40,
     borderTopRightRadius: 40,
-    marginTop: -40,
+    marginTop: -55,
     paddingHorizontal: 24,
     paddingTop: 30,
-    paddingBottom: 20,
+    paddingBottom: 130,
+    elevation: 20,
   },
 
-  profileSection: {
-    flex: 1,
-  },
   nameText: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontSize: 20,
     fontWeight: "600",
   },
   tagText: {
-    color: "#AAAAAA",
+    color: "#AAA",
     fontSize: 13,
     marginTop: 2,
     marginBottom: 18,
   },
   joinedText: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontSize: 14,
     marginBottom: 32,
   },
@@ -238,33 +244,59 @@ const styles = StyleSheet.create({
     marginBottom: 26,
   },
   statLabel: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontSize: 14,
     marginBottom: 6,
   },
   statValue: {
-    fontSize: 26,
-    fontWeight: "700",
+    fontSize: 32,
+    fontWeight: "800",
   },
 
-  /* BOTTOM TAB BAR */
-  tabBar: {
-    backgroundColor: "#F5F5F5",
-    height: 64,
-    borderRadius: 26,
+  recentSection: {
+    marginTop: 24,
+  },
+  recentTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 10,
+  },
+  recentEmpty: {
+    color: "#bbb",
+    fontSize: 13,
+  },
+
+  recentList: {
     flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 8,
   },
-  tabItem: {
-    flex: 1,
-    alignItems: "center",
+  recentPill: {
+    backgroundColor: "#1E1E1E",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: "#333",
+  },
+  recentPillText: {
+    color: "#fff",
+    fontSize: 12,
   },
 
-  /* LOADING */
+  bottomTabWrapper: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+
   loadingCenter: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
   },
 });
+
+export default HomeScreen;
