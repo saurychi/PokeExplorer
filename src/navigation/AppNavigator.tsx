@@ -7,6 +7,7 @@ import SigninScreen from '../screens/auth/SigninScreen';
 import SignupScreen from '../screens/auth/SignupScreen';
 import StarterScreen from '../screens/start/StarterScreen';
 import GenderScreen from '../screens/start/GenderScreen';
+import RandomizePokemon from '../screens/pokedex/RandomizePokemon';
 
 const Stack = createNativeStackNavigator();
 
@@ -20,6 +21,7 @@ export default function AppNavigator() {
         <Stack.Screen name="Signup" component={SignupScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Starter" component={StarterScreen} options={{ headerShown: false }} />
         <Stack.Screen name="Gender" component={GenderScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Randomize" component={RandomizePokemon} options={{ headerShown: false }} />
       </Stack.Navigator>
     </NavigationContainer>
   );
