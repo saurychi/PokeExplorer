@@ -1,10 +1,15 @@
-import React from "react";
-import { View, TouchableOpacity, StyleSheet } from "react-native";
-import { HomeIcon, UserIcon, ArrowsRightLeftIcon } from "react-native-heroicons/outline";
-import { CircleStackIcon } from "react-native-heroicons/solid";
-import { useNavigation } from "@react-navigation/native";
+import React from 'react';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import {
+  HomeIcon,
+  UserIcon,
+  ArrowsRightLeftIcon,
+  MapIcon,
+  BookOpenIcon,
+} from 'react-native-heroicons/outline';
+import { useNavigation } from '@react-navigation/native';
 
-export type TabKey = "home" | "discover" | "profile" | "randomize";
+export type TabKey = 'home' | 'randomize' | 'hunt' | 'menu';
 
 type Props = {
   activeTab: TabKey;
@@ -12,58 +17,62 @@ type Props = {
   accentColor?: string;
 };
 
-const BottomTab = ({ activeTab, onTabPress, accentColor = "#FF5252" }: Props) => {
+const BottomTab = ({
+  activeTab,
+  onTabPress,
+  accentColor = '#FF5252',
+}: Props) => {
   const navigation = useNavigation<any>();
 
-  const getColor = (tab: TabKey) =>
-    activeTab === tab ? accentColor : "#000";
-
+  const getColor = (tab: TabKey) => (activeTab === tab ? accentColor : '#000');
 
   return (
     <View style={styles.tabBar}>
-
       <TouchableOpacity
         style={styles.tabItem}
-        onPress={() => navigation.navigate("Home")}
+        onPress={() => navigation.navigate('Home')}
       >
-        <HomeIcon size={24} strokeWidth={2} color={getColor("home")} />
+        <HomeIcon size={24} strokeWidth={2} color={getColor('home')} />
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.tabItem}
-        onPress={() => navigation.navigate("Discover")}
+        onPress={() => navigation.navigate('Hunt')}
       >
-        <CircleStackIcon size={26} color={getColor("discover")} />
+        <MapIcon size={24} strokeWidth={2} color={getColor('hunt')} />
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.tabItem}
-        onPress={() => navigation.navigate("Profile")}
+        onPress={() => navigation.navigate('Randomize')}
       >
-        <UserIcon size={24} strokeWidth={2} color={getColor("profile")} />
+        <ArrowsRightLeftIcon
+          size={24}
+          strokeWidth={2}
+          color={getColor('randomize')}
+        />
       </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.tabItem}
-        onPress={() => navigation.navigate("Randomize")}
+        onPress={() => navigation.navigate('Menu')}
       >
-        <ArrowsRightLeftIcon  size={24} strokeWidth={2} color={getColor("randomize")} />
+        <BookOpenIcon size={24} strokeWidth={2} color={getColor('menu')} />
       </TouchableOpacity>
-
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   tabBar: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
     height: 70,
-    backgroundColor: "#FDFDFD",
+    backgroundColor: '#FDFDFD',
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
-    shadowColor: "#000",
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
@@ -71,8 +80,8 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
 

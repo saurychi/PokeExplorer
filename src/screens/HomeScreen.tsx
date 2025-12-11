@@ -1,5 +1,3 @@
-// src/screens/HomeScreen.tsx
-
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -49,30 +47,23 @@ const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
     fetchProfile();
   }, [navigation]);
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color="#E53935" />
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  const displayName = profile?.name || profile?.displayName || "Trainer";
+  // Safe fallbacks while loading
+  const displayName =
+    profile?.name || profile?.displayName || "Trainer";
   const gender = profile?.gender === "female" ? "female" : "male";
 
-  const theme = gender === "female"
-    ? {
-        topColor: "#4FA7FF",
-        accent: "#4FA7FF",
-        trainerImage: require("../assets/images/female_trainer.png"),
-      }
-    : {
-        topColor: "#FF5252",
-        accent: "#FF5252",
-        trainerImage: require("../assets/images/male_trainer.png"),
-      };
+  const theme =
+    gender === "female"
+      ? {
+          topColor: "#4FA7FF",
+          accent: "#4FA7FF",
+          trainerImage: require("../assets/images/female_trainer.png"),
+        }
+      : {
+          topColor: "#FF5252",
+          accent: "#FF5252",
+          trainerImage: require("../assets/images/male_trainer.png"),
+        };
 
   const joinedText =
     profile?.createdAt?.toDate
@@ -83,13 +74,10 @@ const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+      {/* Top hero section (always visible, even while loading) */}
       <View style={[styles.topSection, { backgroundColor: theme.topColor }]}>
-
         <LinearGradient
-          colors={[
-            "rgba(255,255,255,0.55)",
-            "rgba(255,255,255,0.0)",
-          ]}
+          colors={["rgba(255,255,255,0.55)", "rgba(255,255,255,0.0)"]}
           start={{ x: 0.5, y: 1 }}
           end={{ x: 0.5, y: 0 }}
           style={styles.bottomGlow}
@@ -112,44 +100,57 @@ const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
         </View>
       </View>
 
+      {/* Bottom sheet (this is the part that "loads") */}
       <View style={styles.bottomSheet}>
-        <Text style={styles.nameText}>{displayName}</Text>
-        <Text style={styles.tagText}>@{(profile?.email || "").split("@")[0]}</Text>
-
-        <Text style={styles.joinedText}>Joined on {joinedText}</Text>
-
-        <View style={styles.statBlock}>
-          <Text style={styles.statLabel}>Total Pokemon Discovered:</Text>
-          <Text style={[styles.statValue, { color: theme.accent }]}>
-            {profile?.pokemon_discovered ?? 0}
-          </Text>
-        </View>
-
-        <View style={styles.statBlock}>
-          <Text style={styles.statLabel}>Total Pokemon Captures:</Text>
-          <Text style={[styles.statValue, { color: theme.accent }]}>
-            {profile?.pokemon_captured ?? 0}
-          </Text>
-        </View>
-
-        <View style={styles.recentSection}>
-          <Text style={styles.recentTitle}>Recently Caught Pokémon</Text>
-          {recentCaught.length === 0 ? (
-            <Text style={styles.recentEmpty}>
-              No recent captures yet. Go explore and catch some!
+        {loading ? (
+          <View style={styles.loadingSection}>
+            <ActivityIndicator size="small" color="#E53935" />
+            <Text style={styles.loadingText}>Loading trainer data…</Text>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.nameText}>{displayName}</Text>
+            <Text style={styles.tagText}>
+              @{(profile?.email || "").split("@")[0]}
             </Text>
-          ) : (
-            <View style={styles.recentList}>
-              {recentCaught.slice(0, 4).map((name, idx) => (
-                <View key={idx} style={styles.recentPill}>
-                  <Text style={styles.recentPillText}>{name}</Text>
-                </View>
-              ))}
+
+            <Text style={styles.joinedText}>Joined on {joinedText}</Text>
+
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Total Pokémon Discovered:</Text>
+              <Text style={[styles.statValue, { color: theme.accent }]}>
+                {profile?.pokemon_discovered ?? 0}
+              </Text>
             </View>
-          )}
-        </View>
+
+            <View style={styles.statBlock}>
+              <Text style={styles.statLabel}>Total Pokémon Captures:</Text>
+              <Text style={[styles.statValue, { color: theme.accent }]}>
+                {profile?.pokemon_captured ?? 0}
+              </Text>
+            </View>
+
+            <View style={styles.recentSection}>
+              <Text style={styles.recentTitle}>Recently Caught Pokémon</Text>
+              {recentCaught.length === 0 ? (
+                <Text style={styles.recentEmpty}>
+                  No recent captures yet. Go explore and catch some!
+                </Text>
+              ) : (
+                <View style={styles.recentList}>
+                  {recentCaught.slice(0, 4).map((name, idx) => (
+                    <View key={idx} style={styles.recentPill}>
+                      <Text style={styles.recentPillText}>{name}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          </>
+        )}
       </View>
 
+      {/* Bottom Tab (always visible) */}
       <View style={styles.bottomTabWrapper}>
         <BottomTab
           activeTab={activeTab}
@@ -178,7 +179,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: 200, // adjust strength
+    height: 200,
     zIndex: 0,
   },
 
@@ -221,6 +222,17 @@ const styles = StyleSheet.create({
     paddingTop: 30,
     paddingBottom: 130,
     elevation: 20,
+  },
+
+  loadingSection: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 24,
+  },
+  loadingText: {
+    color: "#fff",
+    marginTop: 10,
+    fontSize: 14,
   },
 
   nameText: {
@@ -290,12 +302,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-  },
-
-  loadingCenter: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
   },
 });
 
