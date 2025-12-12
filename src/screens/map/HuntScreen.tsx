@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,22 +8,22 @@ import {
   TouchableOpacity,
   PermissionsAndroid,
   Platform,
-} from 'react-native';
-import MapView, {
-  Marker,
-  Region,
-  UserLocationChangeEvent,
-} from 'react-native-maps';
+} from "react-native";
+import MapView, { Marker, Region, UserLocationChangeEvent } from "react-native-maps";
 
-import BottomTab from '../../components/BottomTab';
-import type { TabKey } from '../../components/BottomTab';
-import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import BottomTab from "../../components/BottomTab";
+import type { TabKey } from "../../components/BottomTab";
+import { NativeStackScreenProps } from "@react-navigation/native-stack";
+
+import { getRandomPokemon } from "../../utils/pokemonUtils";
 
 type PokemonSpawn = {
-  id: number;
-  name: string;
-  latitude: number;
-  longitude: number;
+  id: number;          // pokemon id (from PokéAPI)
+  name: string;        // pokemon name (from PokéAPI)
+  latitude: number;    // fixed
+  longitude: number;   // fixed
+  image?: string | null; // optional, if your Capture screen wants it
+  types?: string[];      // optional
 };
 
 type SimpleCoord = {
@@ -31,19 +31,14 @@ type SimpleCoord = {
   longitude: number;
 };
 
-const FIXED_SPAWNS: PokemonSpawn[] = [
-  {
-    id: 1,
-    name: 'Pikachu',
-    latitude: 10.35169070676011,
-    longitude: 123.9135216047996,
-  },
-  {
-    id: 2,
-    name: 'Bulbasaur',
-    latitude: 10.351712474809442,
-    longitude: 123.91347600725064,
-  },
+type SpawnPoint = {
+  latitude: number;
+  longitude: number;
+};
+
+const FIXED_SPAWN_POINTS: SpawnPoint[] = [
+  { latitude: 10.35169070676011, longitude: 123.9135216047996 },
+  { latitude: 10.351712474809442, longitude: 123.91347600725064 },
 ];
 
 const DEFAULT_REGION: Region = {
@@ -53,12 +48,7 @@ const DEFAULT_REGION: Region = {
   longitudeDelta: 0.01,
 };
 
-function distanceInMeters(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number,
-): number {
+function distanceInMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
   const R = 6371000;
   const toRad = (v: number) => (v * Math.PI) / 180;
 
@@ -75,32 +65,32 @@ function distanceInMeters(
 const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+
   const [userLocation, setUserLocation] = useState<SimpleCoord | null>(null);
   const [region, setRegion] = useState<Region>(DEFAULT_REGION);
   const [spawns, setSpawns] = useState<PokemonSpawn[]>([]);
-  const hasCenteredOnce = useRef(false);
 
+  const hasCenteredOnce = useRef(false);
   const mapRef = useRef<MapView | null>(null);
 
   const requestLocationPermission = async () => {
     try {
-      if (Platform.OS === 'android') {
+      if (Platform.OS === "android") {
         const granted = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
           {
-            title: 'Location Permission',
-            message: 'PokeExplorer needs your location for Hunt mode!',
-            buttonPositive: 'OK',
-          },
+            title: "Location Permission",
+            message: "PokeExplorer needs your location for Hunt mode!",
+            buttonPositive: "OK",
+          }
         );
-        setHasLocationPermission(
-          granted === PermissionsAndroid.RESULTS.GRANTED,
-        );
+        setHasLocationPermission(granted === PermissionsAndroid.RESULTS.GRANTED);
       } else {
         setHasLocationPermission(true);
       }
     } catch (err) {
-      console.warn('Permission error:', err);
+      console.warn("Permission error:", err);
     } finally {
       setLoading(false);
     }
@@ -114,16 +104,11 @@ const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
     const coord = event.nativeEvent.coordinate;
     if (!coord) return;
 
-    const current = {
-      latitude: coord.latitude,
-      longitude: coord.longitude,
-    };
-
+    const current = { latitude: coord.latitude, longitude: coord.longitude };
     setUserLocation(current);
 
     if (!hasCenteredOnce.current) {
       hasCenteredOnce.current = true;
-
       mapRef.current?.animateToRegion(
         {
           latitude: current.latitude,
@@ -131,17 +116,14 @@ const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
           latitudeDelta: 0.01,
           longitudeDelta: 0.01,
         },
-        800,
+        800
       );
     }
   };
 
   const handleCenterOnUser = () => {
     if (!userLocation) {
-      Alert.alert(
-        'No location yet',
-        "We don't have your current location yet.",
-      );
+      Alert.alert("No location yet", "We don't have your current location yet.");
       return;
     }
 
@@ -152,41 +134,60 @@ const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
         latitudeDelta: 0.01,
         longitudeDelta: 0.01,
       },
-      600,
+      600
     );
   };
 
-  const handleScanForPokemon = () => {
-    setSpawns(FIXED_SPAWNS);
+  // ✅ Scan: randomize pokemon per fixed point, but keep lat/lng the same
+  const handleScanForPokemon = async () => {
+    if (scanning) return;
 
     if (!userLocation) {
-      Alert.alert('Location not ready', 'Move around or wait a moment.');
+      Alert.alert("Location not ready", "Move around or wait a moment.");
       return;
     }
 
-    const { latitude: baseLat, longitude: baseLon } = userLocation;
+    try {
+      setScanning(true);
 
-    const nearby = FIXED_SPAWNS.filter(pkm => {
-      const dist = distanceInMeters(
-        baseLat,
-        baseLon,
-        pkm.latitude,
-        pkm.longitude,
+      // Fetch a random Pokémon for each fixed spawn point
+      const results = await Promise.all(
+        FIXED_SPAWN_POINTS.map(async (point) => {
+          const p = await getRandomPokemon();
+          return {
+            id: p.id,
+            name: p.name,
+            image: p.image,
+            types: p.types,
+            latitude: point.latitude,
+            longitude: point.longitude,
+          } as PokemonSpawn;
+        })
       );
-      return dist < 200;
-    });
 
-    if (nearby.length > 0) {
-      const target = nearby[0];
+      setSpawns(results);
 
-      navigation.navigate('CapturePokemon', {
-        pokemon: target,
+      const { latitude: baseLat, longitude: baseLon } = userLocation;
+
+      const nearby = results.filter((pkm) => {
+        const dist = distanceInMeters(baseLat, baseLon, pkm.latitude, pkm.longitude);
+        return dist < 200;
       });
-    } else {
-      Alert.alert(
-        'No Pokémon nearby',
-        'Walk towards a spawn point and try again.',
-      );
+
+      if (nearby.length > 0) {
+        const target = nearby[0];
+
+        navigation.navigate("CapturePokemon", {
+          pokemon: target, // includes id/name/image/types + fixed lat/lng
+        });
+      } else {
+        Alert.alert("No Pokémon nearby", "Walk towards a spawn point and try again.");
+      }
+    } catch (e: any) {
+      console.log("Scan error:", e);
+      Alert.alert("Scan failed", "Could not randomize Pokémon. Please try again.");
+    } finally {
+      setScanning(false);
     }
   };
 
@@ -201,7 +202,6 @@ const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
 
   return (
     <View style={styles.screen}>
-
       <MapView
         ref={mapRef}
         style={styles.map}
@@ -210,24 +210,20 @@ const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
         showsUserLocation={hasLocationPermission}
         onUserLocationChange={handleUserLocationChange}
       >
-        {spawns.map(pkm => (
+        {spawns.map((pkm, idx) => (
           <Marker
-            key={pkm.id}
-            coordinate={{
-              latitude: pkm.latitude,
-              longitude: pkm.longitude,
-            }}
+            key={`${pkm.id}-${idx}`}
+            coordinate={{ latitude: pkm.latitude, longitude: pkm.longitude }}
             title={pkm.name}
+            description={`#${pkm.id}`}
           />
         ))}
       </MapView>
 
-      {/* Overlay UI */}
       <View style={styles.overlay}>
         <Text style={styles.title}>Hunt Mode</Text>
         <Text style={styles.text}>
-          Walk around and discover Pokémon at fixed locations. Scan to check if
-          a Pokémon is within range.
+          Scan randomizes the Pokémon, but keeps spawn locations fixed.
         </Text>
 
         <TouchableOpacity style={styles.button} onPress={handleCenterOnUser}>
@@ -235,18 +231,20 @@ const HuntScreen = ({ navigation }: NativeStackScreenProps<any>) => {
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, { marginTop: 6 }]}
+          style={[styles.button, { marginTop: 6 }, scanning && { opacity: 0.7 }]}
           onPress={handleScanForPokemon}
+          disabled={scanning}
         >
-          <Text style={styles.buttonText}>Scan for Pokémon</Text>
+          <Text style={styles.buttonText}>
+            {scanning ? "Scanning..." : "Scan for Pokémon"}
+          </Text>
         </TouchableOpacity>
 
         <Text style={styles.textSmall}>
-          Total Fixed Spawns: {FIXED_SPAWNS.length}
+          Fixed Spawn Points: {FIXED_SPAWN_POINTS.length} | Spawned: {spawns.length}
         </Text>
       </View>
 
-      {/* Floating bottom tab */}
       <View style={styles.tabWrapper}>
         <BottomTab activeTab="hunt" onTabPress={(tab: TabKey) => {}} />
       </View>
@@ -259,40 +257,40 @@ export default HuntScreen;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#FDFDFD',
+    backgroundColor: "#FDFDFD",
   },
   map: {
     ...StyleSheet.absoluteFillObject,
   },
   overlay: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 100,
     left: 16,
     right: 16,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: "rgba(0,0,0,0.6)",
   },
   center: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#0b1220',
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#0b1220",
   },
-  title: { fontSize: 20, fontWeight: 'bold', color: 'white' },
-  text: { color: 'white', textAlign: 'center', marginTop: 6 },
-  textSmall: { color: '#ddd', textAlign: 'center', marginTop: 6, fontSize: 12 },
+  title: { fontSize: 20, fontWeight: "bold", color: "white" },
+  text: { color: "white", textAlign: "center", marginTop: 6 },
+  textSmall: { color: "#ddd", textAlign: "center", marginTop: 6, fontSize: 12 },
   button: {
     marginTop: 12,
     paddingVertical: 8,
     paddingHorizontal: 20,
     borderRadius: 999,
-    backgroundColor: '#f97316',
-    alignSelf: 'center',
+    backgroundColor: "#f97316",
+    alignSelf: "center",
   },
-  buttonText: { color: 'white', fontWeight: 'bold' },
+  buttonText: { color: "white", fontWeight: "bold" },
   tabWrapper: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,

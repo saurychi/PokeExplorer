@@ -9,7 +9,7 @@ import {
 } from 'react-native-heroicons/outline';
 import { useNavigation } from '@react-navigation/native';
 
-export type TabKey = 'home' | 'randomize' | 'hunt' | 'menu';
+export type TabKey = 'home' | 'randomize' | 'hunt' | 'menu' | 'profile';
 
 type Props = {
   activeTab: TabKey;
@@ -58,6 +58,13 @@ const BottomTab = ({
         onPress={() => navigation.navigate('Menu')}
       >
         <BookOpenIcon size={24} strokeWidth={2} color={getColor('menu')} />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={styles.tabItem}
+        onPress={() => navigation.navigate('Profile')}
+      >
+        <UserIcon size={24} strokeWidth={2} color={getColor('profile')} />
       </TouchableOpacity>
     </View>
   );

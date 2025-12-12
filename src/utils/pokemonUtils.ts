@@ -1,5 +1,3 @@
-// src/utils/pokemonUtils.ts
-
 export type FetchedPokemon = {
   id: number;
   name: string;

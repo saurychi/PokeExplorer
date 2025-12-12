@@ -11,6 +11,7 @@ import RandomizePokemon from '../screens/pokedex/RandomizePokemon';
 import HuntScreen from '../screens/map/HuntScreen';
 import CapturePokemon from '../screens/map/CapturePokemon';
 import Menu from '../screens/pokedex/menu';
+import Profile from '../screens/auth/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -66,6 +67,11 @@ export default function AppNavigator() {
         <Stack.Screen
           name="Menu"
           component={Menu}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Profile"
+          component={Profile}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
