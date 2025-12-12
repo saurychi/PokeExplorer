@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+// src/screens/menu/menu.tsx
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,36 +9,43 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-} from 'react-native';
-import { MagnifyingGlassIcon } from 'react-native-heroicons/outline';
+} from "react-native";
+import { MagnifyingGlassIcon } from "react-native-heroicons/outline";
+import { WebView } from "react-native-webview";
+import Ionicons from "react-native-vector-icons/Ionicons";
 
-import BottomTab, { TabKey } from '../../components/BottomTab';
+import BottomTab, { TabKey } from "../../components/BottomTab";
 
-import auth from '@react-native-firebase/auth';
-import firestore from '@react-native-firebase/firestore';
+import auth from "@react-native-firebase/auth";
+import firestore from "@react-native-firebase/firestore";
 
-type SortMode = 'number' | 'name';
+type SortMode = "number" | "name";
 
 type PokedexEntry = {
   id: number; // Pokédex number (pokemon_id)
   name: string;
-  image: string | null;
+  image?: string | null; // captured photo, not shown in UI anymore
 };
 
 const PokedexMenu: React.FC = () => {
-  const [search, setSearch] = useState('');
-  const [sortMode, setSortMode] = useState<SortMode>('number');
-  const [activeTab, setActiveTab] = useState<TabKey>('menu');
+  const [search, setSearch] = useState("");
+  const [sortMode, setSortMode] = useState<SortMode>("number");
+  const [activeTab, setActiveTab] = useState<TabKey>("menu");
 
   const [captured, setCaptured] = useState<PokedexEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // mic / WebView state
+  const [listening, setListening] = useState(false);
+  const [speechReady, setSpeechReady] = useState(false);
+  const webviewRef = useRef<WebView | null>(null);
+
   useEffect(() => {
     const user = auth().currentUser;
 
     if (!user) {
-      setError('You must be signed in to view your Pokédex.');
+      setError("You must be signed in to view your Pokédex.");
       setLoading(false);
       return;
     }
@@ -46,33 +54,40 @@ const PokedexMenu: React.FC = () => {
     setError(null);
 
     const unsubscribe = firestore()
-      .collection('pokemons')
-      .where('user_id', '==', user.uid)
+      .collection("pokemons")
+      .where("user_id", "==", user.uid)
       .onSnapshot(
-        snapshot => {
-          const list: PokedexEntry[] = snapshot.docs.map(doc => {
+        (snapshot) => {
+          const map = new Map<number, PokedexEntry>();
+
+          snapshot.docs.forEach((doc) => {
             const data = doc.data() as any;
 
             const pokemonId: number =
-              typeof data.pokemon_id === 'number'
+              typeof data.pokemon_id === "number"
                 ? data.pokemon_id
                 : Number(data.pokemon_id) || 0;
 
-            return {
-              id: pokemonId,
-              name: data.name || `Pokemon #${pokemonId}`,
-              image: data.image || null,
-            };
+            if (!pokemonId) return;
+
+            // ensure each id appears only once
+            if (!map.has(pokemonId)) {
+              map.set(pokemonId, {
+                id: pokemonId,
+                name: (data.name || `Pokemon #${pokemonId}`).toLowerCase(),
+                image: data.image || null,
+              });
+            }
           });
 
-          setCaptured(list);
+          setCaptured(Array.from(map.values()));
           setLoading(false);
         },
-        err => {
-          console.log('Pokedex fetch error:', err);
-          setError('Failed to load your Pokédex.');
+        (err) => {
+          console.log("Pokedex fetch error:", err);
+          setError("Failed to load your Pokédex.");
           setLoading(false);
-        },
+        }
       );
 
     return () => unsubscribe();
@@ -81,10 +96,10 @@ const PokedexMenu: React.FC = () => {
   const filteredAndSorted = useMemo(() => {
     const q = search.trim().toLowerCase();
 
-    let list = captured.filter(p => p.name.toLowerCase().includes(q));
+    let list = captured.filter((p) => p.name.toLowerCase().includes(q));
 
     list = list.sort((a, b) => {
-      if (sortMode === 'number') {
+      if (sortMode === "number") {
         return a.id - b.id;
       } else {
         return a.name.localeCompare(b.name);
@@ -95,21 +110,38 @@ const PokedexMenu: React.FC = () => {
   }, [captured, search, sortMode]);
 
   const renderCard = (p: PokedexEntry) => {
-    const numberLabel = `#${p.id.toString().padStart(3, '0')}`;
+    const numberLabel = `#${p.id.toString().padStart(3, "0")}`;
+
+    // Show official Pokémon artwork instead of captured photo
+    const spriteUrl = p.id
+      ? `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${p.id}.png`
+      : null;
+
     return (
-      <View key={`${p.id}-${p.name}-${numberLabel}`} style={styles.card}>
+      <View key={p.id} style={styles.card}>
         <View style={styles.cardTopRow}>
           <Text style={styles.cardNumber}>{numberLabel}</Text>
         </View>
         <View style={styles.cardImageWrapper}>
-          {p.image ? (
-            <Image source={{ uri: p.image }} style={styles.cardImage} />
+          {spriteUrl ? (
+            <Image source={{ uri: spriteUrl }} style={styles.cardImage} />
           ) : (
-            <Text style={{ fontSize: 10, color: '#999' }}>No image</Text>
+            <Text style={{ fontSize: 10, color: "#999" }}>No image</Text>
           )}
         </View>
         <Text style={styles.cardName}>{p.name}</Text>
       </View>
+    );
+  };
+
+  const handleMicPress = () => {
+    if (!speechReady) {
+      console.log("Speech WebView not ready yet");
+      return;
+    }
+    setListening(true);
+    webviewRef.current?.injectJavaScript(
+      "window.startRecognition && window.startRecognition(); true;"
     );
   };
 
@@ -120,6 +152,7 @@ const PokedexMenu: React.FC = () => {
 
         <View style={styles.searchBox}>
           <MagnifyingGlassIcon size={20} color="#999" />
+
           <TextInput
             style={styles.searchInput}
             placeholder="Enter name or category"
@@ -127,6 +160,15 @@ const PokedexMenu: React.FC = () => {
             value={search}
             onChangeText={setSearch}
           />
+
+          {/* MIC BUTTON (voice search) */}
+          <TouchableOpacity onPress={handleMicPress} style={styles.micButton}>
+            <Ionicons
+              name={listening ? "mic" : "mic-outline"}
+              size={20}
+              color={listening ? "#FF5252" : "#999"}
+            />
+          </TouchableOpacity>
         </View>
 
         <View style={styles.sortRow}>
@@ -136,20 +178,20 @@ const PokedexMenu: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.sortOption,
-                sortMode === 'number' && styles.sortOptionActive,
+                sortMode === "number" && styles.sortOptionActive,
               ]}
-              onPress={() => setSortMode('number')}
+              onPress={() => setSortMode("number")}
             >
               <View
                 style={[
                   styles.sortRadio,
-                  sortMode === 'number' && styles.sortRadioActive,
+                  sortMode === "number" && styles.sortRadioActive,
                 ]}
               />
               <Text
                 style={[
                   styles.sortOptionText,
-                  sortMode === 'number' && styles.sortOptionTextActive,
+                  sortMode === "number" && styles.sortOptionTextActive,
                 ]}
               >
                 Number
@@ -159,20 +201,20 @@ const PokedexMenu: React.FC = () => {
             <TouchableOpacity
               style={[
                 styles.sortOption,
-                sortMode === 'name' && styles.sortOptionActive,
+                sortMode === "name" && styles.sortOptionActive,
               ]}
-              onPress={() => setSortMode('name')}
+              onPress={() => setSortMode("name")}
             >
               <View
                 style={[
                   styles.sortRadio,
-                  sortMode === 'name' && styles.sortRadioActive,
+                  sortMode === "name" && styles.sortRadioActive,
                 ]}
               />
               <Text
                 style={[
                   styles.sortOptionText,
-                  sortMode === 'name' && styles.sortOptionTextActive,
+                  sortMode === "name" && styles.sortOptionTextActive,
                 ]}
               >
                 Name
@@ -195,7 +237,9 @@ const PokedexMenu: React.FC = () => {
           />
         )}
 
-        {!loading && error && <Text style={styles.errorText}>{error}</Text>}
+        {!loading && error && (
+          <Text style={styles.errorText}>{error}</Text>
+        )}
 
         {!loading && !error && filteredAndSorted.length === 0 && (
           <Text style={styles.emptyText}>
@@ -205,10 +249,35 @@ const PokedexMenu: React.FC = () => {
 
         {!loading && !error && filteredAndSorted.length > 0 && (
           <View style={styles.grid}>
-            {filteredAndSorted.map(p => renderCard(p))}
+            {filteredAndSorted.map((p) => renderCard(p))}
           </View>
         )}
       </ScrollView>
+
+      {/* Hidden WebView for browser speech recognition */}
+      <WebView
+        ref={webviewRef}
+        source={require("../../assets/speech.html")}
+        onMessage={(event) => {
+          const msg = event.nativeEvent.data;
+
+          if (msg === "__ready") {
+            setSpeechReady(true);
+            return;
+          }
+
+          if (msg.startsWith("__error")) {
+            console.log("Speech error:", msg);
+            setListening(false);
+            return;
+          }
+
+          const spoken = msg.toLowerCase().trim();
+          setListening(false);
+          setSearch(spoken);
+        }}
+        style={{ width: 1, height: 1, opacity: 0 }}
+      />
 
       <View style={styles.bottomTabWrapper}>
         <BottomTab
@@ -226,24 +295,24 @@ export default PokedexMenu;
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: '#f7f7f7',
+    backgroundColor: "#f7f7f7",
   },
   header: {
-    backgroundColor: '#000',
+    backgroundColor: "#000",
     paddingTop: 60,
     paddingHorizontal: 20,
     paddingBottom: 24,
   },
   headingText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 22,
-    fontWeight: '700',
+    fontWeight: "700",
     marginBottom: 18,
   },
   searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 999,
     paddingHorizontal: 16,
     paddingVertical: 8,
@@ -252,26 +321,29 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 8,
     fontSize: 14,
-    color: '#222',
+    color: "#222",
+  },
+  micButton: {
+    marginLeft: 8,
   },
   sortRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 18,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   sortLabel: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   sortOptions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   sortOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 4,
   },
@@ -281,20 +353,20 @@ const styles = StyleSheet.create({
     height: 14,
     borderRadius: 7,
     borderWidth: 1,
-    borderColor: '#fff',
+    borderColor: "#fff",
     marginRight: 6,
   },
   sortRadioActive: {
-    backgroundColor: '#FF5252',
-    borderColor: '#FF5252',
+    backgroundColor: "#FF5252",
+    borderColor: "#FF5252",
   },
   sortOptionText: {
-    color: '#ddd',
+    color: "#ddd",
     fontSize: 13,
   },
   sortOptionTextActive: {
-    color: '#FF5252',
-    fontWeight: '600',
+    color: "#FF5252",
+    fontWeight: "600",
   },
 
   listArea: {
@@ -303,44 +375,44 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: 16,
     paddingTop: 16,
-    paddingBottom: 120, // space so cards don't hide behind tab
+    paddingBottom: 90, // a bit less so it doesn't feel like a huge empty block
   },
   grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   card: {
-    width: '30%',
-    backgroundColor: '#fff',
+    width: "30%",
+    backgroundColor: "#fff",
     borderRadius: 16,
     paddingVertical: 10,
     paddingHorizontal: 8,
     marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
+    alignItems: "center",
+    shadowColor: "#000",
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 6,
     elevation: 3,
   },
   cardTopRow: {
-    width: '100%',
-    alignItems: 'flex-end',
+    width: "100%",
+    alignItems: "flex-end",
     marginBottom: 4,
   },
   cardNumber: {
     fontSize: 10,
-    color: '#999',
-    fontWeight: '600',
+    color: "#999",
+    fontWeight: "600",
   },
   cardImageWrapper: {
     width: 70,
     height: 70,
     borderRadius: 14,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "#f0f0f0",
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 8,
   },
   cardImage: {
@@ -349,30 +421,24 @@ const styles = StyleSheet.create({
   },
   cardName: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#333',
-    textAlign: 'center',
-  },
-  scrollHint: {
-    textAlign: 'center',
-    marginTop: 8,
-    color: '#777',
-    fontSize: 12,
+    fontWeight: "600",
+    color: "#333",
+    textAlign: "center",
   },
   errorText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 24,
-    color: '#ff7b7b',
+    color: "#ff7b7b",
     fontSize: 14,
   },
   emptyText: {
-    textAlign: 'center',
+    textAlign: "center",
     marginTop: 24,
-    color: '#777',
+    color: "#777",
     fontSize: 14,
   },
   bottomTabWrapper: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     bottom: 0,

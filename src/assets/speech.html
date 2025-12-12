@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+  <body>
+    <script>
+  function send(msg) {
+    if (window.ReactNativeWebView) {
+      window.ReactNativeWebView.postMessage(msg);
+    } else {
+      console.log("RNW not found", msg);
+    }
+  }
+
+  // Let React Native know we’re ready
+  window.addEventListener("load", function () {
+    send("__ready");
+  });
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    send("__error: no-speech-api");
+  } else {
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = false;
+
+    window.startRecognition = function () {
+      try {
+        recognition.start();
+      } catch (e) {
+        // ignore multiple start() calls
+      }
+    };
+
+    recognition.onresult = function (event) {
+      const transcript = event.results[0][0].transcript;
+      send(transcript);
+    };
+
+    recognition.onerror = function (event) {
+      send("__error: " + (event.error || "unknown"));
+    };
+
+    recognition.onend = function () {
+      // React Native turns listening off when it sees a normal result or an error
+    };
+  }
+</script>
+
+
+    <button onclick="startRecognition()">Start</button>
+  </body>
+</html>

@@ -1,3 +1,4 @@
+// src/screens/HomeScreen.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -11,14 +12,29 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import auth from "@react-native-firebase/auth";
 import firestore from "@react-native-firebase/firestore";
 import LinearGradient from "react-native-linear-gradient";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import BottomTab, { TabKey } from "../components/BottomTab";
+
+type CaptureItem = {
+  uri: string;
+  pokemonName: string;
+  createdAt: number;
+};
+
+const CAPTURE_STORAGE_KEY = "@pokeexplorer_captures";
 
 const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabKey>("home");
 
+  // Local stats derived from AR captures
+  const [totalDiscovered, setTotalDiscovered] = useState(0);
+  const [totalCaptures, setTotalCaptures] = useState(0);
+  const [recentCaughtNames, setRecentCaughtNames] = useState<string[]>([]);
+
+  // 1) Load profile from Firebase (same as before)
   useEffect(() => {
     const user = auth().currentUser;
 
@@ -47,9 +63,52 @@ const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
     fetchProfile();
   }, [navigation]);
 
+  // 2) Load capture stats from AsyncStorage (AR captures)
+  const loadCaptureStats = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(CAPTURE_STORAGE_KEY);
+      if (!stored) {
+        setTotalCaptures(0);
+        setTotalDiscovered(0);
+        setRecentCaughtNames([]);
+        return;
+      }
+
+      const parsed: CaptureItem[] = JSON.parse(stored);
+
+      // Total captures = total photos saved
+      setTotalCaptures(parsed.length);
+
+      // Total discovered = unique Pokémon names
+      const speciesSet = new Set(
+        parsed
+          .map((c) => c.pokemonName || "")
+          .filter(Boolean)
+          .map((name) => name.toLowerCase().trim())
+      );
+      setTotalDiscovered(speciesSet.size);
+
+      // Recently caught = last few names (most recent first)
+      const recent = parsed.slice(0, 4).map((c) => c.pokemonName || "Unknown");
+      setRecentCaughtNames(recent);
+    } catch (err) {
+      console.log("Error loading capture stats:", err);
+    }
+  };
+
+  // Run once and also whenever Home gains focus (coming back from AR)
+  useEffect(() => {
+    loadCaptureStats();
+
+    const unsubscribe = navigation.addListener("focus", () => {
+      loadCaptureStats();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
+
   // Safe fallbacks while loading
-  const displayName =
-    profile?.name || profile?.displayName || "Trainer";
+  const displayName = profile?.name || profile?.displayName || "Trainer";
   const gender = profile?.gender === "female" ? "female" : "male";
 
   const theme =
@@ -70,7 +129,7 @@ const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
       ? profile.createdAt.toDate().toLocaleDateString()
       : "Unknown";
 
-  const recentCaught: string[] = profile?.recent_caught || [];
+  const recentCaught = recentCaughtNames;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -119,14 +178,14 @@ const HomeScreen = ({ navigation }: NativeStackScreenProps<any>) => {
             <View style={styles.statBlock}>
               <Text style={styles.statLabel}>Total Pokémon Discovered:</Text>
               <Text style={[styles.statValue, { color: theme.accent }]}>
-                {profile?.pokemon_discovered ?? 0}
+                {totalDiscovered}
               </Text>
             </View>
 
             <View style={styles.statBlock}>
               <Text style={styles.statLabel}>Total Pokémon Captures:</Text>
               <Text style={[styles.statValue, { color: theme.accent }]}>
-                {profile?.pokemon_captured ?? 0}
+                {totalCaptures}
               </Text>
             </View>
 
